@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenda da campanha Patrus 13 · Minas Gerais</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23D7141A'/><text x='50' y='70' font-size='56' font-family='Arial' font-weight='700' text-anchor='middle' fill='white'>13</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    /* Paleta da campanha */
+    --vermelho:#D7141A; --vermelho-escuro:#A50E13; --vinho:#5E0A0F;
+    --rosa:#FBE3E4; --papel:#FFFFFF; --fundo:#F4F3F3; --linha:#E4E0E0;
+    --tinta:#1F1A1A; --cinza:#6E6464;
+    /* Cores por tipo de atividade (mudar aqui muda mapa, legenda e cards) */
+    --t-visita:#D7141A; --t-ato:#5E0A0F; --t-bandeira:#E8A200;
+    --t-banca:#EE7B6D; --t-encontro:#3F4A63;
+    --cond:'Barlow Condensed','Arial Narrow',Arial,sans-serif;
+    --texto:'Barlow',system-ui,-apple-system,'Segoe UI',Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:var(--texto);color:var(--tinta);background:var(--fundo)}
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:3px solid var(--vinho);outline-offset:2px}
+
+  #app{display:flex;height:100vh;overflow:hidden}
+
+  /* ---------- Painel (metade esquerda) ---------- */
+  #painel{width:50%;min-width:0;display:flex;flex-direction:column;background:var(--papel);
+          border-right:1px solid var(--linha);z-index:500}
+  .topo{padding:18px 24px 14px;border-bottom:1px solid var(--linha);display:flex;align-items:flex-end;gap:16px}
+  .topo .marca{flex:none;width:52px;height:52px;border-radius:12px;background:var(--vermelho);color:#fff;
+          display:grid;place-items:center;font-family:var(--cond);font-weight:800;font-size:30px;letter-spacing:-.5px}
+  .topo h1{margin:0;font-family:var(--cond);font-weight:700;font-size:26px;line-height:1.05;letter-spacing:.1px}
+  .topo p{margin:4px 0 0;font-size:13.5px;color:var(--cinza)}
+
+  .painel-corpo{flex:1;min-height:0;display:grid;grid-template-columns:1fr;overflow-y:auto}
+  .col-cal{padding:18px 24px 8px}
+  .col-lista{padding:8px 24px 24px}
+
+  /* Calendário: o bloco forte da página */
+  .cal{background:var(--vermelho);color:#fff;border-radius:16px;padding:14px 14px 12px}
+  .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .cal-nav h2{margin:0;font-family:var(--cond);font-weight:700;font-size:24px}
+  .cal-nav button{width:34px;height:34px;border-radius:50%;border:1.5px solid rgba(255,255,255,.55);
+          background:transparent;color:#fff;cursor:pointer;font-size:18px;line-height:1}
+  .cal-nav button:hover{background:rgba(255,255,255,.14)}
+  .cal-nav button:disabled{opacity:.3;cursor:default;background:transparent}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-sem{font-family:var(--cond);font-weight:600;font-size:13px;text-align:center;opacity:.75;padding:2px 0 4px}
+  .dia{position:relative;aspect-ratio:1/1;min-height:40px;border-radius:10px;border:none;background:transparent;
+       color:rgba(255,255,255,.45);font-family:var(--cond);font-weight:600;font-size:19px;cursor:default;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0}
+  .dia.vazio{visibility:hidden}
+  .dia.tem{color:#fff;cursor:pointer;background:rgba(255,255,255,.1)}
+  .dia.tem:hover{background:rgba(255,255,255,.22)}
+  .dia.hoje{box-shadow:inset 0 0 0 2px rgba(255,255,255,.85)}
+  .dia.sel{background:#fff;color:var(--vermelho)}
+  .dia .qtd{font-family:var(--texto);font-weight:600;font-size:10.5px;line-height:1;margin-top:2px;opacity:.9}
+  .dia .estrela{position:absolute;top:3px;right:4px;font-size:10px;line-height:1}
+  .cal-rodape{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12.5px;gap:8px}
+  .cal-rodape button{border:1.5px solid rgba(255,255,255,.7);background:transparent;color:#fff;border-radius:20px;
+          padding:5px 12px;cursor:pointer;font-weight:600;font-size:12.5px}
+  .cal-rodape button[aria-pressed="true"]{background:#fff;color:var(--vermelho)}
+  .cal-rodape span{opacity:.85}
+
+  /* Filtros */
+  .filtros{margin-top:16px}
+  .filtros summary{cursor:pointer;font-family:var(--cond);font-weight:700;font-size:19px;padding:4px 0 6px}
+  .filtros h3{margin:14px 0 7px;font-size:13px;font-weight:600;color:var(--cinza)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--linha);background:#fff;border-radius:20px;
+        padding:5px 11px;font-size:13px;cursor:pointer;user-select:none}
+  .chip .bola{width:11px;height:11px;border-radius:50%;flex:none}
+  .chip[aria-pressed="false"]{opacity:.38}
+  .chip.status[aria-pressed="true"]{border-color:var(--tinta)}
+  .patrus-toggle{display:flex;align-items:center;gap:10px;margin-top:4px;padding:10px 12px;border-radius:12px;
+        background:var(--rosa);cursor:pointer;font-size:13.5px;font-weight:600;color:var(--vinho)}
+  .patrus-toggle input{width:17px;height:17px;accent-color:var(--vermelho)}
+  select{width:100%;padding:8px 10px;border:1.5px solid var(--linha);border-radius:10px;background:#fff;font:inherit;font-size:13.5px}
+  .acoes{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+  .acoes button{flex:1;min-width:110px;padding:9px 10px;border-radius:10px;border:1.5px solid var(--linha);background:#fff;
+        cursor:pointer;font-weight:600;font-size:13px}
+  .acoes button:hover{border-color:var(--vermelho);color:var(--vermelho)}
+
+  /* Lista do dia */
+  .lista-topo{position:sticky;top:0;background:var(--papel);padding:10px 0 8px;z-index:2}
+  .lista-topo h2{margin:0;font-family:var(--cond);font-weight:700;font-size:28px;line-height:1.05}
+  .lista-topo p{margin:3px 0 0;font-size:13px;color:var(--cinza)}
+  #lista{list-style:none;margin:4px 0 0;padding:0}
+  .grupo-dia{font-family:var(--cond);font-weight:700;font-size:17px;margin:16px 0 4px;color:var(--vermelho-escuro)}
+  .ev{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--linha);cursor:pointer}
+  .ev:hover .ev-titulo{color:var(--vermelho)}
+  .ev.ativo{background:var(--rosa);margin:0 -10px;padding:11px 10px;border-radius:10px;border-top-color:transparent}
+  .ev-hora{font-family:var(--cond);font-weight:700;font-size:18px;line-height:1.1}
+  .ev-hora small{display:block;font-weight:500;font-size:13px;color:var(--cinza)}
+  .ev-titulo{font-weight:600;font-size:14.5px;line-height:1.3}
+  .ev-local{font-size:13px;color:var(--cinza);margin-top:2px;line-height:1.35}
+  .ev-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--fundo);color:var(--tinta)}
+  .tag.tipo{color:#fff}
+  .tag.patrus{background:var(--vermelho);color:#fff}
+  .tag.pendente{background:#FFF1CC;color:#6B4E00}
+  .tag.realizada{background:#E7EFE9;color:#2E5C3E}
+  .tag.semlocal{background:#fff;border:1px dashed var(--cinza);color:var(--cinza)}
+  .vazio-msg{padding:22px 0;color:var(--cinza);font-size:14px}
+
+  /* ---------- Mapa (metade direita) ---------- */
+  #mapaWrap{position:relative;flex:1;min-width:0}
+  #map{position:absolute;inset:0;background:#EDEBEB}
+  .pin{--c:var(--t-banca);width:22px;height:22px;border-radius:50%;background:var(--c);border:2.5px solid #fff;
+       box-shadow:0 1px 4px rgba(40,0,0,.35);display:grid;place-items:center;color:#fff;
+       font-family:var(--cond);font-weight:700;font-size:12px;line-height:1}
+  .pin.patrus{width:32px;height:32px;background:var(--vermelho);font-size:15px;border-width:3px}
+  .pin.passado{opacity:.5}
+  .pin.pendente{border-style:dashed}
+  .pin.sel{box-shadow:0 0 0 4px rgba(215,20,26,.35),0 1px 4px rgba(40,0,0,.35)}
+  .pin .n{position:absolute;top:-7px;right:-8px;min-width:17px;height:17px;border-radius:9px;background:var(--tinta);
+       color:#fff;font-family:var(--texto);font-size:10.5px;font-weight:600;display:grid;place-items:center;padding:0 4px}
+  .leaflet-div-icon.pin-wrap{background:none;border:none}
+
+  #foraBH{position:absolute;top:12px;right:12px;z-index:600;max-width:min(300px,calc(100% - 80px));
+       background:#fff;border-radius:12px;padding:10px 12px;box-shadow:0 2px 10px rgba(40,0,0,.15);font-size:13px;display:none}
+  #foraBH.on{display:block}
+  #foraBH strong{display:block;font-size:12.5px;color:var(--cinza);font-weight:600;margin-bottom:5px}
+  #foraBH button{display:flex;align-items:center;gap:7px;width:100%;text-align:left;border:none;background:none;
+       padding:4px 0;cursor:pointer;font-weight:600;font-size:13.5px}
+  #foraBH button:hover{color:var(--vermelho)}
+  #foraBH .bola{width:10px;height:10px;border-radius:50%;flex:none}
+
+  /* Card que abre ao clicar no mapa */
+  #card{position:absolute;left:14px;bottom:14px;z-index:700;width:min(390px,calc(100% - 28px));max-height:calc(100% - 28px);
+       overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 8px 28px rgba(40,0,0,.22);display:none}
+  #card.on{display:block;animation:sobe .18s ease-out}
+  @keyframes sobe{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){#card.on{animation:none}}
+  .card-topo{position:sticky;top:0;background:var(--vermelho);color:#fff;padding:14px 48px 12px 16px;border-radius:16px 16px 0 0}
+  .card-topo h2{margin:0;font-family:var(--cond);font-weight:700;font-size:22px;line-height:1.1}
+  .card-topo p{margin:3px 0 0;font-size:12.5px;opacity:.9}
+  .card-fechar{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;
+       background:rgba(255,255,255,.18);color:#fff;cursor:pointer;font-size:18px;line-height:1}
+  .card-fechar:hover{background:rgba(255,255,255,.32)}
+  .card-ev{padding:13px 16px;border-top:1px solid var(--linha)}
+  .card-ev:first-of-type{border-top:none}
+  .card-ev.foco{background:var(--rosa)}
+  .card-ev h3{margin:0;font-size:15px;line-height:1.3}
+  .card-ev .quando{font-family:var(--cond);font-weight:700;font-size:16px;color:var(--vermelho-escuro);margin-bottom:3px}
+  .card-ev dl{margin:8px 0 0;font-size:13px;line-height:1.45;display:grid;grid-template-columns:auto 1fr;gap:2px 10px}
+  .card-ev dt{color:var(--cinza)}
+  .card-ev dd{margin:0}
+  .card-pe{padding:11px 16px 14px;border-top:1px solid var(--linha);font-size:12.5px;color:var(--cinza)}
+  .card-pe a{color:var(--vermelho);font-weight:600}
+
+  #rodape{margin:18px 0 0;font-size:11.5px;color:var(--cinza)}
+  #rodape a{color:inherit}
+
+  /* Painel largo: calendário e lista lado a lado */
+  @media (min-width:1180px){
+    .painel-corpo{grid-template-columns:minmax(320px,380px) 1fr;overflow:hidden}
+    .col-cal{overflow-y:auto;border-right:1px solid var(--linha);padding-bottom:20px}
+    .col-lista{overflow-y:auto;padding-top:8px}
+  }
+  /* Celular: painel em cima, mapa embaixo, página rola */
+  @media (max-width:820px){
+    #app{flex-direction:column;height:auto;overflow:visible}
+    #painel{width:100%;border-right:none;border-bottom:1px solid var(--linha)}
+    .painel-corpo{overflow:visible}
+    #mapaWrap{height:70vh;flex:none}
+    .lista-topo{position:static}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="painel">
+    <header class="topo">
+      <div class="marca" aria-hidden="true">13</div>
+      <div>
+        <h1>Agenda da campanha Patrus 13</h1>
+        <p>Atividades de rua, caminhadas e visitas em Minas Gerais</p>
+      </div>
+    </header>
+
+    <div class="painel-corpo">
+      <section class="col-cal" aria-label="Calendário e filtros">
+        <div class="cal">
+          <div class="cal-nav">
+            <button id="mesAnt" aria-label="Mês anterior">‹</button>
+            <h2 id="mesNome"></h2>
+            <button id="mesProx" aria-label="Próximo mês">›</button>
+          </div>
+          <div class="cal-grid" id="calGrid" role="grid"></div>
+          <div class="cal-rodape">
+            <span>★ dia com agenda do Patrus</span>
+            <button id="btnTodos" aria-pressed="false">Ver todos os dias</button>
+          </div>
+        </div>
+
+        <details class="filtros" id="filtrosBox" open>
+          <summary>Filtros</summary>
+          <label class="patrus-toggle"><input type="checkbox" id="soPatrus"> Mostrar só agendas com o Patrus</label>
+          <h3>Tipo de atividade</h3>
+          <div class="chips" id="fTipos"></div>
+          <h3>Situação</h3>
+          <div class="chips" id="fStatus"></div>
+          <h3>Frente ou regional</h3>
+          <select id="fFrente"><option value="">Todas</option></select>
+          <div class="acoes">
+            <button id="verBH">Ver Belo Horizonte</button>
+            <button id="verMG">Ver Minas Gerais</button>
+            <button id="limpar">Limpar filtros</button>
+          </div>
+        </details>
+        <p id="rodape">Produzido por <a href="https://www.linkedin.com/in/larissadinizaguiar/" target="_blank" rel="noopener">Larissa Diniz Aguiar</a>, 2026.</p>
+      </section>
+
+      <section class="col-lista" aria-live="polite">
+        <div class="lista-topo">
+          <h2 id="listaTitulo"></h2>
+          <p id="listaResumo"></p>
+        </div>
+        <ol id="lista"></ol>
+      </section>
+    </div>
+  </aside>
+
+  <main id="mapaWrap">
+    <div id="map" aria-label="Mapa das atividades"></div>
+    <div id="foraBH"></div>
+    <article id="card" aria-live="polite"></article>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* =====================================================================
+   DADOS
+   Cada evento: data (AAAA-MM-DD), hora, atividade, local, municipio,
+   lat/lng (null quando o local ainda não foi definido), precisao,
+   tipo, frentes, diaD, patrus (true se o Patrus participa),
+   status, responsavel, obs, linha (linha de origem na planilha).
+   precisao: "endereco" | "aproximada" | "regional" | "cidade" | "sem local"
+   ===================================================================== */
+const EVENTOS = [{"data": "2026-09-22","atividade": "Mobilização","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 3,"hora": "07:00","local": "Praça 7","lat": -19.9193,"lng": -43.9386,"precisao": "endereco","municipio": "Belo Horizonte","tipo": "Banquinha e panfletagem"},{"data": "2026-09-22","atividade": "Mobilização","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 3,"hora": "07:00","local": "Passarela do Metrô Lagoinha","lat": -19.9103,"lng": -43.9428,"precisao": "aproximada","municipio": "Belo Horizonte","tipo": "Banquinha e panfletagem"},{"data": "2026-09-22","atividade": "Mobilização","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 3,"hora": "16:00","local": "Padre Eustáquio","lat": -19.912,"lng": -43.976,"precisao": "aproximada","municipio": "Belo Horizonte","tipo": "Banquinha e panfletagem"},{"data": "2026-09-22","atividade": "Mobilização","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 3,"hora": "16:00","local": "Rodoviária","lat": -19.917,"lng": -43.941,"precisao": "endereco","municipio": "Belo Horizonte","tipo": "Banquinha e panfletagem"},{"data": "2026-09-22","atividade": "Panfletagem","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 4,"hora": "16:30","local": "Move Paraná com Tamoios, Carijós e Tupinambás","tipo": "Banquinha e panfletagem","lat": -19.9185,"lng": -43.9405,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha da Saúde","frentes": ["Saúde"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 5,"hora": "12:00-13:30","local": "Av. Alfredo Balena, 190","tipo": "Banquinha e panfletagem","lat": -19.9249,"lng": -43.9307,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Tenda da Democracia","frentes": ["Barreiro"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 6,"hora": "09:00-18:30","local": "Av. Sinfrônio Brochado, 300","tipo": "Banquinha e panfletagem","lat": -19.9762,"lng": -44.0152,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Saída de turno Ensino Médio","frentes": ["Barreiro"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 7,"hora": "18:13","local": "Escola Rodrigues Campos","tipo": "Banquinha e panfletagem","lat": -19.975,"lng": -44.012,"precisao": "regional","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 8,"hora": "08:00-12:00","local": "Cafezal","tipo": "Banquinha e panfletagem","lat": -19.942,"lng": -43.915,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 9,"hora": "11:00-15:00","local": "Praça da Savassi","tipo": "Banquinha e panfletagem","lat": -19.9375,"lng": -43.9335,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 10,"hora": "14:00-16:00","local": "Barragem Santa Lúcia","tipo": "Banquinha e panfletagem","lat": -19.9565,"lng": -43.948,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Leste"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 11,"hora": "10:00-16:00","local": "Rua Silva Alvarenga, 1111","tipo": "Banquinha e panfletagem","lat": -19.906,"lng": -43.923,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Nordeste"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 12,"hora": "08:00-10:00","local": "Centro de Saúde Paulo VI","tipo": "Banquinha e panfletagem","lat": -19.86,"lng": -43.921,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Nordeste"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 13,"hora": "16:00-19:00","local": "Centro de Saúde Paulo VI","tipo": "Banquinha e panfletagem","lat": -19.86,"lng": -43.921,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Noroeste"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 14,"hora": "09:00-18:00","local": "Bairro Pindorama","tipo": "Banquinha e panfletagem","lat": -19.897,"lng": -43.995,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Norte"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 15,"hora": "08:00-16:00","local": "Av. Waldomiro Lobo, 1220","tipo": "Banquinha e panfletagem","lat": -19.837,"lng": -43.926,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Oeste"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 16,"hora": "07:00-11:30","local": "Estação Metrô Vila Oeste","tipo": "Banquinha e panfletagem","lat": -19.9375,"lng": -43.9975,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Pampulha"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 17,"hora": "08:00-12:00","local": "Av. Carlos Luz, 4269","tipo": "Banquinha e panfletagem","lat": -19.878,"lng": -43.97,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Banquinha e Panfletagem","frentes": ["Venda Nova"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 18,"hora": "10:00-17:00","local": "Shopping UAI","tipo": "Banquinha e panfletagem","lat": -19.819,"lng": -43.953,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Panfletagem e bandeiraço","frentes": ["Leste","Coletivo Feminista do Bem Viver"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 19,"hora": "18:00","local": "Av. Assis Chateaubriand com Francisco Sales","tipo": "Bandeiraço e adesivaço","lat": -19.918,"lng": -43.929,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-22","atividade": "Agenda do Patrus em Congonhas","frentes": [],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": true,"linha": 20,"hora": "","local": "Congonhas","tipo": "Visita do Patrus","lat": -20.4958,"lng": -43.851,"precisao": "cidade","municipio": "Congonhas"},{"data": "2026-09-23","atividade": "Panfletagem","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 22,"hora": "07:20","local": "Porta da Prodabel - Av. Pres. Carlos Luz, 1275","tipo": "Banquinha e panfletagem","lat": -19.899,"lng": -43.96,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Banquinha e Panfletagem","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 23,"hora": "08:00-12:00","local": "Praça do Cardoso - Rua Principal, 1041 Santa Rita de Cássia","tipo": "Banquinha e panfletagem","lat": -19.944,"lng": -43.917,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Banquinha e Panfletagem","frentes": ["Norte"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 24,"hora": "08:00-16:00","local": "Rua Olívia Maria de Jesus, 1757 - Floramar em frente à Pizzaria do Índio","tipo": "Banquinha e panfletagem","lat": -19.832,"lng": -43.938,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Banquinha e Panfletagem","frentes": ["Noroeste"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 25,"hora": "08:00-17:00","local": "Rua Guararapes, 2001 - Bairro Pindorama","tipo": "Banquinha e panfletagem","lat": -19.897,"lng": -43.995,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Panfletagem","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 26,"hora": "08:00","local": "Rua Vinte e Oito de Setembro- Bairro Esplanada","tipo": "Banquinha e panfletagem","lat": -19.913,"lng": -43.911,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Panfletagem","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Realizada","obs": "","patrus": false,"linha": 27,"hora": "08:00","local": "Praça 7","tipo": "Banquinha e panfletagem","lat": -19.9193,"lng": -43.9386,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Banquinha e Panfletagem","frentes": ["Leste"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 28,"hora": "10:00-18:00","local": "Av. Belém, 1800 esq. de Juramento - Pompéia","tipo": "Banquinha e panfletagem","lat": -19.923,"lng": -43.902,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Banquinha e Panfletagem","frentes": ["Venda Nova"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 29,"hora": "10:00-17:00","local": "Shopping UAI - Rua Padre Pedro Pinto, 2257","tipo": "Banquinha e panfletagem","lat": -19.819,"lng": -43.953,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Banquinha e Panfletagem","frentes": ["Pampulha"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 30,"hora": "10:00-17:00","local": "Calçada do Sacolão - Rua Expedicionário Paulo de Souza esq. de Rua Urca","tipo": "Banquinha e panfletagem","lat": -19.871,"lng": -43.975,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Banquinha e Panfletagem","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 31,"hora": "11:00-15:00","local": "Praça da Savassi em frente à Loja Melissa Av. Cristovão Colombo, 265","tipo": "Banquinha e panfletagem","lat": -19.9375,"lng": -43.9335,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Conversa sobre Moradia Popular","frentes": ["Norte"],"diaD": false,"responsavel": "Carlos","status": "Programada","obs": "","patrus": false,"linha": 32,"hora": "15:00","local": "Sede da Pastoral Metropolitana, na Rua Vaqueiro de Bufalo, número 80, Vila Mariquinhas","tipo": "Encontro e debate","lat": -19.829,"lng": -43.95,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Caminhada com Patrus e Marília pelas ruas do Vetor Norte","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": true,"linha": 33,"hora": "15:00","local": "Vila Mariquinhas","tipo": "Caminhada e ato","lat": -19.829,"lng": -43.95,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Caminhada pela Ocupação Dandara","frentes": ["Norte"],"diaD": false,"responsavel": "Marcelo Guabiroba","status": "Programada","obs": "","patrus": false,"linha": 34,"hora": "16:00","local": "Rua Dandara, 18","tipo": "Caminhada e ato","lat": -19.827,"lng": -43.982,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Panfletagem","frentes": ["MST"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 35,"hora": "16:00","local": "Portaria UFMG - Av. Antônio Carlos, 6627","tipo": "Banquinha e panfletagem","lat": -19.87,"lng": -43.962,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Caminhada com Patrus e Marília + Bella em defesa da ocupação Dandara","frentes": ["MAB","MST"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": true,"linha": 36,"hora": "17:00","local": "Rua das Flores, 235 - Bairro Trevo (referência Padaria Dandara)","tipo": "Caminhada e ato","lat": -19.83,"lng": -43.979,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Bandeiraço Time do Lula e Patrus","frentes": ["Oeste"],"diaD": true,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 37,"hora": "17:00","local": "Av. Raja Gabaglia, 1710","tipo": "Bandeiraço e adesivaço","lat": -19.948,"lng": -43.953,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Bandeiraço e adesivaço, Kombi da juventude + trompete","frentes": ["Nordeste"],"diaD": true,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 38,"hora": "17:00","local": "Estação São Gabriel rua Augusto Sacheto, 256 - Jardim Vitória.","tipo": "Bandeiraço e adesivaço","lat": -19.862,"lng": -43.927,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Panfletagem e bandeiraço","frentes": ["Leste","Coletivo Feminista do Bem Viver"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 39,"hora": "17:00","local": "Metrô da Praça da Estação","tipo": "Bandeiraço e adesivaço","lat": -19.9165,"lng": -43.9335,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Encontro de mobilização da reta final da campanha Lula e Patrus, com a presença do Presidente Nacional do PT Edinho Silva","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": false,"linha": 40,"hora": "18:00","local": "CUT Minas - Rua Pedro Carvalho Mendes, 70 - Colégio Batista","tipo": "Encontro e debate","lat": -19.905,"lng": -43.931,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-23","atividade": "Agenda do Patrus em Pouso Alegre","frentes": [],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": true,"linha": 41,"hora": "","local": "Pouso Alegre","tipo": "Visita do Patrus","lat": -22.2266,"lng": -45.9389,"precisao": "cidade","municipio": "Pouso Alegre"},{"data": "2026-09-24","atividade": "Panfletagem região central","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": false,"linha": 43,"hora": "07:30","local": "Move Paraná x Tamóios, Carijós e Tupinambás","tipo": "Banquinha e panfletagem","lat": -19.9185,"lng": -43.9405,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-24","atividade": "Panfletagem Escola de Saúde Pública e Fiocruz","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Pendente de confirmação","obs": "","patrus": false,"linha": 44,"hora": "12:00-14:00","local": "Local a confirmar","tipo": "Banquinha e panfletagem","lat": -19.923,"lng": -43.953,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-24","atividade": "Panfletagem região central","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Sem status","obs": "","patrus": false,"linha": 45,"hora": "16:30","local": "Move Paraná x Tamóios, Carijós e Tupinambás","tipo": "Banquinha e panfletagem","lat": -19.9185,"lng": -43.9405,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-24","atividade": "Adesivaço e bandeiraço, Macaé, Gleide e Rogério Correia","frentes": ["Norte"],"diaD": true,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 46,"hora": "16:00-20:00","local": "Av. Cristiano Guimarães, 1691 Bairro Planalto Próximo à Caixa","tipo": "Caminhada e ato","lat": -19.844,"lng": -43.951,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-24","atividade": "Agenda do Patrus em Barbacena","frentes": [],"diaD": false,"responsavel": "","status": "Sem status","obs": "","patrus": true,"linha": 47,"hora": "","local": "Barbacena","tipo": "Visita do Patrus","lat": -21.2214,"lng": -43.7703,"precisao": "cidade","municipio": "Barbacena"},{"data": "2026-09-25","atividade": "Caminhada Patrus e Marília pelas ruas do Barreiro","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Pendente de confirmação","obs": "","patrus": true,"linha": 49,"hora": "09:00","local": "Local a confirmar","tipo": "Caminhada e ato","lat": -19.975,"lng": -44.012,"precisao": "regional","municipio": "Belo Horizonte"},{"data": "2026-09-25","atividade": "Adesivado e bandeiraço, Kombi da Juventude, som, MAB","frentes": ["Venda Nova","MAB"],"diaD": true,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 50,"hora": "10:00-15:00","local": "Estação Vilarinho na porta de entrada","tipo": "Bandeiraço e adesivaço","lat": -19.82,"lng": -43.948,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-25","atividade": "Bandeiraço e panfletagem","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 51,"hora": "11:15","local": "Em frente à Fac. de Direito / UFMG","tipo": "Bandeiraço e adesivaço","lat": -19.931,"lng": -43.938,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-25","atividade": "Banquinha da Saúde","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 52,"hora": "12:00-13:30","local": "Faculdade de Medicina UFMG Av. Alfredo Balena, 190","tipo": "Banquinha e panfletagem","lat": -19.9249,"lng": -43.9307,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-25","atividade": "Banquinha do Fórum de Mulheres","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 53,"hora": "16:00-19:00","local": "Praça da Estação ao lado do metrô","tipo": "Banquinha e panfletagem","lat": -19.9165,"lng": -43.9335,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-25","atividade": "Percurso/caminhada MAB, Bloco Soul Vermelho e carro de som/som da CUT + Jairo","frentes": ["Leste","MAB"],"diaD": true,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 54,"hora": "16:00-20:00","local": "Av. Andradas entreo nº 3500 (Estação Santa Tereza) e o nº 4000 (Supermercado BH)","tipo": "Caminhada e ato","lat": -19.918,"lng": -43.919,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-25","atividade": "Encontro com Patrus, Marília, Áurea e candidaturas negras do Time do Lula","frentes": ["Nordeste"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": true,"linha": 55,"hora": "18:13","local": "Baticum - Tendinha Cultural Rua Itararé, 566 - Concórdia/BH","tipo": "Encontro e debate","lat": -19.896,"lng": -43.938,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-25","atividade": "Agenda do Patrus em Bocaiúva","frentes": [],"diaD": false,"responsavel": "","status": "Sem status","obs": "","patrus": true,"linha": 56,"hora": "","local": "Bocaiúva","tipo": "Visita do Patrus","lat": -17.1135,"lng": -43.8104,"precisao": "cidade","municipio": "Bocaiúva"},{"data": "2026-09-26","atividade": "Ato Bella e Bia","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Pendente de confirmação","obs": "","patrus": false,"linha": 58,"hora": "manhã","local": "Citrolândia","tipo": "Caminhada e ato","lat": -19.999,"lng": -44.227,"precisao": "aproximada","municipio": "Betim"},{"data": "2026-09-26","atividade": "Ato Mulheres na Rua","frentes": ["MAB"],"diaD": false,"responsavel": "MMM e Frentes","status": "Programada","obs": "","patrus": false,"linha": 59,"hora": "15:00","local": "Concentração Praça Afonso Arinos","tipo": "Caminhada e ato","lat": -19.927,"lng": -43.939,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-26","atividade": "Bandeiraço e adesivaço brigada, carro de som, com Adriana Souza e pessoal da Marilia","frentes": ["Centro-Sul"],"diaD": true,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 60,"hora": "09:00-12:00","local": "Praça do Cardoso Serra","tipo": "Bandeiraço e adesivaço","lat": -19.944,"lng": -43.917,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-26","atividade": "Agenda do Patrus em Araçuaí","frentes": [],"diaD": false,"responsavel": "","status": "Sem status","obs": "","patrus": true,"linha": 61,"hora": "","local": "Araçuaí","tipo": "Visita do Patrus","lat": -16.8523,"lng": -42.0637,"precisao": "cidade","municipio": "Araçuaí"},{"data": "2026-09-27","atividade": "Caminhada com Patrus e Marília","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Pendente de confirmação","obs": "","patrus": true,"linha": 65,"hora": "09:00","local": "Aglomerado da Serra/concentração a confirmar","tipo": "Caminhada e ato","lat": -19.942,"lng": -43.915,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-27","atividade": "Pedal com o Time do Lula em BH + Concurso Convoque seu Lula","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "Bloco da Bicicletinha e Setoriais Esportes e Lazer - PT","status": "Programada","obs": "","patrus": false,"linha": 66,"hora": "10:00","local": "Praça ao lado do CCBB","tipo": "Caminhada e ato","lat": -19.932,"lng": -43.938,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-27","atividade": "Ato Aqui é Brasil","frentes": ["MAB"],"diaD": false,"responsavel": "Àurea Carolina","status": "Programada","obs": "","patrus": false,"linha": 67,"hora": "10:00","local": "Concentração Praça Raul Soares","tipo": "Caminhada e ato","lat": -19.923,"lng": -43.946,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-27","atividade": "Concurso Convoque seu Lula","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 68,"hora": "12:00","local": "Praça Raul Soares","tipo": "Banquinha e panfletagem","lat": -19.923,"lng": -43.946,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-27","atividade": "Ato","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 69,"hora": "14:00","local": "Praça da Estação","tipo": "Caminhada e ato","lat": -19.9165,"lng": -43.9335,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-28","atividade": "Caminha com carro de som pelas ruas da cidade (local a confirmar), Marilia Campos acompanha","frentes": [],"diaD": false,"responsavel": "Michelle e Feijão","status": "Programada","obs": "","patrus": false,"linha": 71,"hora": "14:00","local": "Sete Lagoas","tipo": "Caminhada e ato","lat": -19.4569,"lng": -44.2413,"precisao": "cidade","municipio": "Sete Lagoas"},{"data": "2026-09-28","atividade": "Caminhada com carro de som/Marília Campos acompanha","frentes": [],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 72,"hora": "16:30","local": "Justinópolis e região central/comercial","tipo": "Caminhada e ato","lat": -19.81,"lng": -43.995,"precisao": "aproximada","municipio": "Ribeirão das Neves"},{"data": "2026-09-29","atividade": "Panfletagem REGAP","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": false,"linha": 76,"hora": "06:00","local": "Portaria da REGAP - Contagem","tipo": "Banquinha e panfletagem","lat": -19.938,"lng": -44.127,"precisao": "aproximada","municipio": "Betim"},{"data": "2026-09-29","atividade": "Panfletagem região central","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 77,"hora": "07:30","local": "Move Paraná x Tamóios, Carijós e Tupinambás","tipo": "Banquinha e panfletagem","lat": -19.9185,"lng": -43.9405,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-29","atividade": "Banquinha da Saúde","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 78,"hora": "12:00-13:30","local": "Faculdade de Medicina UFMG Av. Alfredo Balena, 190","tipo": "Banquinha e panfletagem","lat": -19.9249,"lng": -43.9307,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-29","atividade": "Panfletagem região central","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": false,"linha": 79,"hora": "16:30","local": "Move Paraná x Tamóios, Carijós e Tupinambás","tipo": "Banquinha e panfletagem","lat": -19.9185,"lng": -43.9405,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-29","atividade": "Debate Globo Minas","frentes": [],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": true,"linha": 80,"hora": "20:00","local": "Av. Américo Vespúcio, 2045","tipo": "Encontro e debate","lat": -19.887,"lng": -43.951,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-30","atividade": "Panfletagem região central","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": false,"linha": 83,"hora": "08:00","local": "Praça Sete","tipo": "Banquinha e panfletagem","lat": -19.9193,"lng": -43.9386,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-09-30","atividade": "Caminhada com Patrus na região de Venda Nova","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": true,"linha": 84,"hora": "09:00","local": "Av. Padre Pedro Pinto","tipo": "Caminhada e ato","lat": -19.817,"lng": -43.954,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-09-30","atividade": "3º Caminhada e Corre \"Tô com Lula\"","frentes": [],"diaD": false,"responsavel": "Setoriais Esportes e Lazer - PT","status": "Programada","obs": "","patrus": false,"linha": 85,"hora": "19:13","local": "Concentração e chegada a definir","tipo": "Caminhada e ato","lat": null,"lng": null,"precisao": "sem local","municipio": ""},{"data": "2026-10-01","atividade": "Caminhada com Patrus na região Nordeste","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": true,"linha": 89,"hora": "09:00","local": "Local a confirmar","tipo": "Caminhada e ato","lat": -19.875,"lng": -43.925,"precisao": "regional","municipio": "Belo Horizonte"},{"data": "2026-10-01","atividade": "Panfletagem região central","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": false,"linha": 90,"hora": "16:30","local": "Move Paraná x Tamóios, Carijós e Tupinambás","tipo": "Banquinha e panfletagem","lat": -19.9185,"lng": -43.9405,"precisao": "aproximada","municipio": "Belo Horizonte"},{"data": "2026-10-02","atividade": "Panfletagem região central","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Sem status","obs": "","patrus": false,"linha": 93,"hora": "08:00","local": "Bandeiraço na Rodoviária de BH","tipo": "Banquinha e panfletagem","lat": -19.917,"lng": -43.941,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-10-02","atividade": "Banquinha da Saúde","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 94,"hora": "12:00-13:30","local": "Faculdade de Medicina UFMG Av. Alfredo Balena, 190","tipo": "Banquinha e panfletagem","lat": -19.9249,"lng": -43.9307,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-10-02","atividade": "Ação na Rodoviária","frentes": ["Centro-Sul"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 95,"hora": "17:00","local": "Rodoviária de BH","tipo": "Banquinha e panfletagem","lat": -19.917,"lng": -43.941,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-10-02","atividade": "Sextou caminhada com Lula em BH","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Pendente de confirmação","obs": "","patrus": false,"linha": 96,"hora": "","local": "local a confirmar","tipo": "Caminhada e ato","lat": null,"lng": null,"precisao": "sem local","municipio": ""},{"data": "2026-10-03","atividade": "Abraço da Contorno","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 98,"hora": "08:13","local": "13 pontos","tipo": "Caminhada e ato","lat": null,"lng": null,"precisao": "sem local","municipio": ""},{"data": "2026-10-03","atividade": "Cortejo Carna Tetra","frentes": ["MAB"],"diaD": false,"responsavel": "","status": "Programada","obs": "","patrus": false,"linha": 99,"hora": "11:00","local": "Concentração na Praça Raul Soares, encerramento na Praça da Estação","tipo": "Caminhada e ato","lat": -19.923,"lng": -43.946,"precisao": "endereco","municipio": "Belo Horizonte"},{"data": "2026-10-03","atividade": "Aniversário do Samba do Arco","frentes": ["MAB"],"diaD": false,"responsavel": "Olivia","status": "Programada","obs": "","patrus": false,"linha": 100,"hora": "15:00","local": "Funarte - Rua Januária, 68 - Centro","tipo": "Encontro e debate","lat": -19.9135,"lng": -43.9335,"precisao": "endereco","municipio": "Belo Horizonte"}];
+const MG = {"type":"Feature","properties":{"nome":"Minas Gerais"},"geometry":{"type":"Polygon","coordinates":[[[-44.24,-14.24],[-44.137,-14.264],[-44.135,-14.282],[-44.112,-14.258],[-44.034,-14.288],[-43.986,-14.267],[-43.942,-14.305],[-43.892,-14.295],[-43.783,-14.339],[-43.873,-14.52],[-43.883,-14.653],[-43.726,-14.698],[-43.719,-14.729],[-43.58,-14.75],[-43.531,-14.815],[-43.474,-14.79],[-43.481,-14.767],[-43.434,-14.723],[-43.311,-14.669],[-43.176,-14.65],[-43.083,-14.698],[-43.066,-14.68],[-42.938,-14.708],[-42.927,-14.744],[-42.723,-14.885],[-42.625,-14.944],[-42.587,-14.93],[-42.476,-15.017],[-42.436,-15.022],[-42.443,-15.06],[-42.376,-15.071],[-42.355,-15.098],[-42.331,-15.08],[-42.264,-15.125],[-42.173,-15.085],[-42.091,-15.186],[-41.997,-15.159],[-41.933,-15.173],[-41.871,-15.116],[-41.8,-15.101],[-41.356,-15.5],[-41.331,-15.744],[-41.215,-15.737],[-41.144,-15.771],[-41.077,-15.719],[-41.004,-15.712],[-40.962,-15.648],[-40.881,-15.694],[-40.815,-15.648],[-40.767,-15.714],[-40.707,-15.666],[-40.645,-15.728],[-40.629,-15.715],[-40.606,-15.736],[-40.562,-15.803],[-40.46,-15.753],[-40.425,-15.805],[-40.376,-15.823],[-40.23,-15.803],[-40.2,-15.862],[-40.166,-15.868],[-40.17,-15.907],[-40.085,-15.897],[-40.066,-15.96],[-40.004,-16.001],[-39.916,-16.0],[-39.935,-16.023],[-39.856,-16.113],[-39.897,-16.141],[-39.883,-16.194],[-39.935,-16.245],[-39.916,-16.283],[-39.968,-16.327],[-39.99,-16.313],[-40.068,-16.458],[-40.084,-16.463],[-40.098,-16.422],[-40.171,-16.524],[-40.159,-16.58],[-40.234,-16.558],[-40.275,-16.574],[-40.31,-16.736],[-40.345,-16.787],[-40.257,-16.806],[-40.247,-16.845],[-40.281,-16.901],[-40.327,-16.909],[-40.366,-16.874],[-40.417,-16.899],[-40.48,-16.876],[-40.57,-17.061],[-40.556,-17.089],[-40.578,-17.148],[-40.552,-17.199],[-40.571,-17.252],[-40.547,-17.283],[-40.609,-17.326],[-40.599,-17.39],[-40.623,-17.406],[-40.52,-17.447],[-40.483,-17.488],[-40.46,-17.568],[-40.41,-17.568],[-40.414,-17.61],[-40.372,-17.612],[-40.354,-17.644],[-40.347,-17.614],[-40.28,-17.722],[-40.224,-17.734],[-40.218,-17.795],[-40.175,-17.852],[-40.263,-17.922],[-40.222,-17.98],[-40.334,-17.927],[-40.464,-17.928],[-40.527,-17.891],[-40.613,-17.939],[-40.626,-17.989],[-40.704,-18.023],[-40.772,-18.002],[-40.808,-17.952],[-40.863,-17.988],[-40.882,-17.97],[-40.902,-17.987],[-40.773,-18.107],[-40.771,-18.155],[-40.849,-18.147],[-40.893,-18.107],[-40.95,-18.129],[-40.954,-18.154],[-40.987,-18.146],[-40.989,-18.17],[-41.056,-18.166],[-41.104,-18.213],[-41.096,-18.255],[-41.158,-18.308],[-41.145,-18.373],[-41.162,-18.39],[-41.144,-18.406],[-41.182,-18.439],[-41.024,-18.457],[-41.033,-18.618],[-41.053,-18.628],[-40.943,-18.687],[-40.917,-18.815],[-40.964,-18.841],[-41.097,-18.842],[-41.134,-18.796],[-41.232,-18.797],[-41.242,-18.854],[-41.214,-18.877],[-41.208,-18.855],[-41.166,-18.858],[-41.103,-18.934],[-41.018,-18.973],[-41.071,-19.023],[-41.053,-19.068],[-40.962,-19.121],[-40.926,-19.189],[-40.941,-19.232],[-40.92,-19.271],[-40.944,-19.279],[-40.907,-19.308],[-40.967,-19.427],[-40.944,-19.46],[-40.972,-19.505],[-41.045,-19.487],[-41.036,-19.568],[-41.168,-19.672],[-41.19,-19.746],[-41.166,-19.792],[-41.184,-19.888],[-41.244,-19.936],[-41.308,-19.948],[-41.308,-20.013],[-41.382,-20.188],[-41.411,-20.206],[-41.756,-20.206],[-41.781,-20.292],[-41.847,-20.329],[-41.858,-20.372],[-41.798,-20.435],[-41.804,-20.544],[-41.856,-20.614],[-41.808,-20.644],[-41.861,-20.706],[-41.878,-20.778],[-41.928,-20.794],[-41.926,-20.838],[-41.976,-20.935],[-42.093,-20.936],[-42.151,-20.974],[-42.08,-21.035],[-42.101,-21.034],[-42.14,-21.102],[-42.164,-21.101],[-42.208,-21.178],[-42.189,-21.249],[-42.229,-21.284],[-42.239,-21.401],[-42.279,-21.41],[-42.292,-21.46],[-42.252,-21.49],[-42.369,-21.619],[-42.365,-21.646],[-42.275,-21.676],[-42.271,-21.715],[-42.882,-21.96],[-43.038,-22.047],[-43.032,-22.066],[-43.073,-22.093],[-43.106,-22.084],[-43.136,-22.109],[-43.154,-22.077],[-43.131,-22.029],[-43.202,-22.037],[-43.246,-22.007],[-43.346,-22.003],[-43.462,-22.072],[-43.513,-22.059],[-43.562,-22.087],[-43.586,-22.052],[-43.612,-22.081],[-43.652,-22.067],[-43.673,-22.089],[-43.691,-22.07],[-43.734,-22.096],[-43.766,-22.062],[-44.005,-22.162],[-44.1,-22.173],[-44.121,-22.209],[-44.235,-22.266],[-44.291,-22.243],[-44.387,-22.272],[-44.456,-22.257],[-44.533,-22.33],[-44.617,-22.331],[-44.66,-22.379],[-44.724,-22.359],[-44.793,-22.387],[-44.833,-22.43],[-44.871,-22.424],[-44.965,-22.475],[-45.028,-22.463],[-45.091,-22.483],[-45.259,-22.582],[-45.274,-22.616],[-45.333,-22.617],[-45.395,-22.651],[-45.471,-22.59],[-45.488,-22.628],[-45.539,-22.652],[-45.584,-22.651],[-45.555,-22.626],[-45.576,-22.602],[-45.665,-22.65],[-45.681,-22.636],[-45.66,-22.578],[-45.716,-22.578],[-45.737,-22.608],[-45.694,-22.651],[-45.742,-22.659],[-45.819,-22.722],[-45.796,-22.738],[-45.728,-22.723],[-45.713,-22.814],[-45.754,-22.792],[-45.791,-22.858],[-45.823,-22.829],[-45.888,-22.875],[-45.909,-22.817],[-46.008,-22.889],[-46.095,-22.894],[-46.139,-22.922],[-46.144,-22.858],[-46.345,-22.904],[-46.384,-22.869],[-46.335,-22.76],[-46.452,-22.727],[-46.477,-22.699],[-46.469,-22.673],[-46.393,-22.662],[-46.424,-22.633],[-46.404,-22.62],[-46.433,-22.573],[-46.407,-22.54],[-46.505,-22.517],[-46.542,-22.494],[-46.53,-22.47],[-46.554,-22.446],[-46.666,-22.414],[-46.66,-22.366],[-46.723,-22.306],[-46.673,-22.176],[-46.645,-22.18],[-46.6,-22.134],[-46.651,-22.091],[-46.723,-22.077],[-46.664,-22.068],[-46.682,-22.028],[-46.613,-22.009],[-46.667,-21.932],[-46.647,-21.88],[-46.691,-21.836],[-46.626,-21.766],[-46.621,-21.675],[-46.565,-21.679],[-46.517,-21.611],[-46.509,-21.469],[-46.576,-21.426],[-46.615,-21.441],[-46.665,-21.361],[-46.706,-21.404],[-46.764,-21.36],[-46.832,-21.367],[-46.92,-21.427],[-47.011,-21.422],[-46.998,-21.35],[-47.052,-21.246],[-47.077,-21.239],[-47.062,-21.209],[-47.098,-21.213],[-47.118,-21.185],[-47.133,-21.133],[-47.113,-21.104],[-47.142,-21.088],[-47.157,-21.018],[-47.143,-20.982],[-47.24,-20.885],[-47.186,-20.731],[-47.165,-20.701],[-47.115,-20.705],[-47.097,-20.644],[-47.154,-20.519],[-47.291,-20.449],[-47.298,-20.348],[-47.231,-20.219],[-47.257,-20.166],[-47.439,-20.049],[-47.425,-20.012],[-47.466,-19.964],[-47.581,-19.995],[-47.636,-20.048],[-47.704,-19.979],[-47.859,-19.993],[-47.894,-20.123],[-47.934,-20.107],[-47.976,-20.035],[-48.019,-20.12],[-48.112,-20.143],[-48.24,-20.029],[-48.253,-20.077],[-48.218,-20.126],[-48.246,-20.14],[-48.405,-20.113],[-48.491,-20.138],[-48.581,-20.132],[-48.646,-20.166],[-48.823,-20.161],[-48.855,-20.182],[-48.885,-20.269],[-48.867,-20.398],[-48.899,-20.441],[-48.968,-20.393],[-48.961,-20.263],[-48.992,-20.165],[-49.067,-20.154],[-49.13,-20.28],[-49.179,-20.31],[-49.217,-20.303],[-49.259,-20.258],[-49.308,-20.102],[-49.296,-20.016],[-49.248,-19.999],[-49.25,-19.97],[-49.44,-19.98],[-49.503,-19.919],[-49.551,-19.905],[-49.641,-19.931],[-49.891,-19.943],[-50.012,-19.926],[-50.102,-19.875],[-50.352,-19.864],[-50.471,-19.779],[-50.576,-19.816],[-50.656,-19.905],[-50.908,-19.994],[-51.0,-20.085],[-51.02,-19.962],[-50.999,-19.906],[-51.045,-19.729],[-50.987,-19.589],[-50.923,-19.576],[-50.962,-19.484],[-50.935,-19.467],[-50.826,-19.487],[-50.875,-19.422],[-50.817,-19.289],[-50.747,-19.235],[-50.733,-19.185],[-50.68,-19.173],[-50.677,-19.139],[-50.585,-19.137],[-50.537,-19.099],[-50.498,-19.034],[-50.509,-18.937],[-50.441,-18.89],[-50.421,-18.831],[-50.376,-18.812],[-50.309,-18.698],[-50.164,-18.664],[-50.08,-18.672],[-50.016,-18.599],[-49.783,-18.641],[-49.77,-18.612],[-49.64,-18.6],[-49.648,-18.558],[-49.558,-18.546],[-49.535,-18.493],[-49.492,-18.496],[-49.481,-18.561],[-49.416,-18.638],[-49.378,-18.642],[-49.33,-18.565],[-49.292,-18.564],[-49.249,-18.522],[-49.193,-18.447],[-49.205,-18.411],[-49.158,-18.413],[-49.108,-18.383],[-49.077,-18.416],[-48.936,-18.306],[-48.832,-18.346],[-48.816,-18.379],[-48.755,-18.344],[-48.561,-18.323],[-48.515,-18.366],[-48.484,-18.353],[-48.479,-18.379],[-48.405,-18.356],[-48.313,-18.384],[-48.314,-18.364],[-48.262,-18.331],[-48.161,-18.372],[-48.114,-18.426],[-48.055,-18.413],[-48.006,-18.454],[-47.98,-18.442],[-47.954,-18.5],[-47.914,-18.466],[-47.868,-18.474],[-47.858,-18.44],[-47.831,-18.449],[-47.809,-18.4],[-47.779,-18.424],[-47.747,-18.411],[-47.74,-18.363],[-47.702,-18.379],[-47.657,-18.327],[-47.626,-18.334],[-47.611,-18.315],[-47.638,-18.287],[-47.567,-18.203],[-47.538,-18.195],[-47.533,-18.23],[-47.518,-18.198],[-47.43,-18.165],[-47.428,-18.139],[-47.396,-18.141],[-47.357,-18.085],[-47.283,-18.058],[-47.373,-17.829],[-47.313,-17.699],[-47.27,-17.674],[-47.266,-17.609],[-47.33,-17.524],[-47.495,-17.525],[-47.514,-17.46],[-47.541,-17.454],[-47.521,-17.423],[-47.538,-17.388],[-47.514,-17.374],[-47.511,-17.331],[-47.44,-17.347],[-47.455,-17.33],[-47.421,-17.316],[-47.434,-17.276],[-47.362,-17.222],[-47.363,-17.186],[-47.34,-17.187],[-47.352,-17.166],[-47.282,-17.144],[-47.247,-17.081],[-47.182,-17.063],[-47.184,-17.036],[-47.147,-17.03],[-47.131,-17.01],[-47.151,-16.997],[-47.126,-16.98],[-47.166,-16.952],[-47.16,-16.922],[-47.196,-16.909],[-47.193,-16.825],[-47.22,-16.806],[-47.25,-16.666],[-47.318,-16.603],[-47.334,-16.617],[-47.342,-16.593],[-47.412,-16.575],[-47.405,-16.555],[-47.444,-16.54],[-47.458,-16.502],[-47.427,-16.394],[-47.366,-16.331],[-47.322,-16.231],[-47.352,-16.132],[-47.333,-16.085],[-47.311,-16.088],[-47.3,-16.017],[-47.219,-16.014],[-47.142,-15.926],[-47.134,-15.95],[-47.087,-15.96],[-46.812,-15.885],[-46.854,-15.62],[-46.949,-15.554],[-46.93,-15.443],[-46.849,-15.373],[-46.869,-15.361],[-46.836,-15.322],[-46.889,-15.282],[-46.892,-15.235],[-46.927,-15.255],[-46.94,-15.229],[-46.889,-15.111],[-46.926,-15.073],[-46.918,-15.049],[-46.856,-15.01],[-46.781,-15.019],[-46.625,-15.089],[-46.502,-15.052],[-46.546,-14.925],[-46.521,-14.851],[-46.565,-14.786],[-46.51,-14.738],[-46.503,-14.704],[-46.474,-14.705],[-46.322,-14.814],[-46.324,-14.847],[-46.3,-14.858],[-46.319,-14.9],[-46.286,-14.928],[-46.233,-14.921],[-46.176,-14.949],[-46.161,-14.906],[-46.088,-14.936],[-46.037,-14.874],[-46.003,-14.902],[-45.966,-14.965],[-45.975,-15.038],[-46.043,-15.118],[-46.049,-15.166],[-46.119,-15.192],[-46.077,-15.264],[-46.052,-15.259],[-46.028,-15.201],[-45.984,-15.196],[-45.953,-15.139],[-45.873,-15.157],[-45.825,-15.116],[-45.721,-15.112],[-45.566,-14.944],[-45.455,-14.953],[-45.317,-14.832],[-45.285,-14.832],[-45.205,-14.744],[-45.083,-14.749],[-45.039,-14.68],[-44.843,-14.58],[-44.858,-14.571],[-44.824,-14.539],[-44.833,-14.499],[-44.701,-14.449],[-44.688,-14.416],[-44.668,-14.423],[-44.658,-14.395],[-44.565,-14.34],[-44.487,-14.328],[-44.316,-14.24],[-44.247,-14.26],[-44.24,-14.24]]]}};
+
+const TIPOS = {
+  'Visita do Patrus':        'var(--t-visita)',
+  'Caminhada e ato':         'var(--t-ato)',
+  'Encontro e debate':       'var(--t-encontro)',
+  'Bandeiraço e adesivaço':  'var(--t-bandeira)',
+  'Banquinha e panfletagem': 'var(--t-banca)'
+};
+const ORDEM_TIPO = Object.keys(TIPOS);           // prioridade da cor quando há vários eventos no mesmo ponto
+const STATUS = ['Programada','Pendente de confirmação','Realizada','Sem status'];
+const NOTA_PRECISAO = {
+  aproximada:'Ponto aproximado, pela referência do endereço.',
+  regional:'Ponto no centro da regional, o local exato ainda não foi definido.',
+  cidade:'Ponto no centro do município.'
+};
+const BH = [-19.9167,-43.9345];
+
+/* ---------- Utilitários ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dataObj = iso => new Date(iso+'T12:00:00');
+const fmtDia = (iso,op) => dataObj(iso).toLocaleDateString('pt-BR',op);
+const hojeISO = (()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;})();
+function minutos(h){
+  if(!h) return 9999;
+  if(/manh/i.test(h)) return 480;
+  if(/tarde/i.test(h)) return 840;
+  if(/noite/i.test(h)) return 1140;
+  const m=h.match(/(\d{1,2}):(\d{2})/); return m? (+m[1])*60+(+m[2]) : 9999;
+}
+function distKm(a,b){ // distância aproximada entre dois pontos [lat,lng]
+  const R=6371,r=Math.PI/180,dLat=(b[0]-a[0])*r,dLng=(b[1]-a[1])*r;
+  const x=Math.sin(dLat/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+EVENTOS.forEach((e,i)=>{ e.id=i; e.min=minutos(e.hora); });
+EVENTOS.sort((a,b)=> a.data.localeCompare(b.data) || a.min-b.min);
+
+/* ---------- Estado ---------- */
+const diasComEvento = [...new Set(EVENTOS.map(e=>e.data))].sort();
+const estado = {
+  dia: null,                     // null = todos os dias
+  mes: null,                     // 'AAAA-MM' exibido no calendário
+  tiposOff: new Set(),
+  statusOff: new Set(),
+  soPatrus: false,
+  frente: '',
+  cardChave: null,               // ponto aberto no card
+  eventoFoco: null
+};
+// dia inicial: hoje, se houver agenda; senão o próximo dia com agenda; senão todos
+estado.dia = diasComEvento.includes(hojeISO) ? hojeISO : (diasComEvento.find(d=>d>hojeISO) || null);
+estado.mes = (estado.dia || diasComEvento[0] || hojeISO).slice(0,7);
+
+function passaFiltros(e){
+  if(estado.tiposOff.has(e.tipo)) return false;
+  if(estado.statusOff.has(e.status)) return false;
+  if(estado.soPatrus && !e.patrus) return false;
+  if(estado.frente && !e.frentes.includes(estado.frente)) return false;
+  return true;
+}
+const filtrados = () => EVENTOS.filter(passaFiltros);
+const doPeriodo = () => filtrados().filter(e=> !estado.dia || e.data===estado.dia);
+
+/* ---------- Mapa ---------- */
+const map = L.map('map',{zoomControl:true}).setView(BH,11);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{
+  attribution:'Tiles &copy; Esri', maxZoom:16
+}).addTo(map);
+map.createPane('rotulos'); map.getPane('rotulos').style.zIndex=250; map.getPane('rotulos').style.pointerEvents='none';
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'rotulos'}).addTo(map);
+const camadaMG = L.geoJSON(MG,{style:{color:'#A50E13',weight:1.6,opacity:.55,fill:false},interactive:false}).addTo(map);
+const camadaPins = L.layerGroup().addTo(map);
+
+const chave = e => `${e.lat.toFixed(4)},${e.lng.toFixed(4)}`;
+function agrupar(lista){
+  const g = new Map();
+  lista.filter(e=>e.lat!=null).forEach(e=>{
+    const k=chave(e); if(!g.has(k)) g.set(k,[]); g.get(k).push(e);
+  });
+  return g;
+}
+
+function iconePonto(evs, selecionado){
+  const patrus = evs.some(e=>e.patrus);
+  const tipo = ORDEM_TIPO.find(t=>evs.some(e=>e.tipo===t));
+  const passado = evs.every(e=>e.status==='Realizada');
+  const pendente = evs.some(e=>e.status==='Pendente de confirmação');
+  const cls = ['pin', patrus&&'patrus', passado&&'passado', pendente&&'pendente', selecionado&&'sel'].filter(Boolean).join(' ');
+  const miolo = patrus ? '13' : (evs.length>1 ? evs.length : '');
+  const badge = (patrus && evs.length>1) ? `<span class="n">${evs.length}</span>` : '';
+  const tam = patrus ? 32 : 22;
+  return L.divIcon({className:'pin-wrap',iconSize:[tam,tam],iconAnchor:[tam/2,tam/2],
+    html:`<div class="${cls}" style="--c:${TIPOS[tipo]};position:relative">${miolo}${badge}</div>`});
+}
+
+let grupos = new Map();
+function desenharMapa(){
+  camadaPins.clearLayers();
+  grupos = agrupar(doPeriodo());
+  grupos.forEach((evs,k)=>{
+    const e0=evs[0];
+    const m = L.marker([e0.lat,e0.lng],{icon:iconePonto(evs,k===estado.cardChave),keyboard:true,
+      title:evs.length>1?`${e0.local} (${evs.length} atividades)`:e0.atividade,
+      zIndexOffset: evs.some(e=>e.patrus)?1000:0});
+    m.on('click',()=>abrirCard(k));
+    m.addTo(camadaPins);
+  });
+  desenharForaBH();
+}
+
+// Agendas longe da capital viram atalhos no canto do mapa
+function desenharForaBH(){
+  const box=$('foraBH');
+  const longe=[...grupos.entries()].filter(([k,evs])=>distKm(BH,[evs[0].lat,evs[0].lng])>45);
+  if(!longe.length){ box.className=''; box.innerHTML=''; return; }
+  box.innerHTML=`<strong>${estado.dia?'Fora da Grande BH neste dia':'Fora da Grande BH'}</strong>`+
+    longe.map(([k,evs])=>{
+      const cor=TIPOS[ORDEM_TIPO.find(t=>evs.some(e=>e.tipo===t))];
+      const txt=estado.dia? evs[0].municipio : `${evs[0].municipio}, ${fmtDia(evs[0].data,{day:'numeric',month:'numeric'})}`;
+      return `<button data-k="${k}"><span class="bola" style="background:${cor}"></span>${esc(txt)}</button>`;
+    }).join('');
+  box.querySelectorAll('button').forEach(b=>b.onclick=()=>{ abrirCard(b.dataset.k,null,true); });
+  box.className='on';
+}
+
+function enquadrar(){
+  const pts=[...grupos.values()].map(evs=>[evs[0].lat,evs[0].lng]);
+  if(!pts.length) return;
+  const perto=pts.filter(p=>distKm(BH,p)<=45);
+  const alvo = perto.length ? perto : pts;
+  if(alvo.length===1) map.setView(alvo[0], perto.length?14:10);
+  else map.fitBounds(alvo,{padding:[40,40],maxZoom:14});
+}
+
+/* ---------- Card ---------- */
+function linkMapa(e){
+  const q = e.lat!=null && e.precisao==='endereco' ? `${e.lat},${e.lng}` : `${e.local}, ${e.municipio||'Belo Horizonte'}, MG`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+function tagsEvento(e){
+  return [
+    e.patrus?'<span class="tag patrus">Com o Patrus</span>':'',
+    `<span class="tag tipo" style="background:${TIPOS[e.tipo]}">${esc(e.tipo)}</span>`,
+    e.status==='Pendente de confirmação'?'<span class="tag pendente">A confirmar</span>':
+    e.status==='Realizada'?'<span class="tag realizada">Realizada</span>':'',
+    e.diaD?'<span class="tag">Dia D</span>':'',
+    e.lat==null?'<span class="tag semlocal">Local a definir</span>':''
+  ].join('');
+}
+function blocoEvento(e, mostrarData){
+  const quando = [mostrarData?fmtDia(e.data,{weekday:'short',day:'numeric',month:'short'}):'', e.hora||'Horário a definir'].filter(Boolean).join(', ');
+  return `<section class="card-ev${e.id===estado.eventoFoco?' foco':''}" id="card-ev-${e.id}">
+    <div class="quando">${esc(quando)}</div>
+    <h3>${esc(e.atividade)}</h3>
+    <div class="ev-tags">${tagsEvento(e)}</div>
+    <dl>
+      ${e.frentes.length?`<dt>Frente</dt><dd>${esc(e.frentes.join(', '))}</dd>`:''}
+      <dt>Local</dt><dd>${esc(e.local||'A definir')}</dd>
+      ${e.responsavel?`<dt>Responsável</dt><dd>${esc(e.responsavel)}</dd>`:''}
+      ${e.obs?`<dt>Observações</dt><dd>${esc(e.obs)}</dd>`:''}
+      <dt>Situação</dt><dd>${esc(e.status)}</dd>
+    </dl>
+  </section>`;
+}
+function abrirCard(k, idEvento=null, voar=false){
+  estado.cardChave=k; estado.eventoFoco=idEvento;
+  const evs = k.startsWith('sem-') ? EVENTOS.filter(e=>e.id===+k.slice(4)) : (grupos.get(k)||[]);
+  if(!evs.length){ fecharCard(); return; }
+  const e0=evs[0], multiDias = new Set(evs.map(e=>e.data)).size>1 || !estado.dia;
+  const titulo = e0.lat==null ? e0.atividade : (e0.precisao==='cidade' ? e0.municipio : e0.local);
+  const sub = e0.lat==null ? 'Local ainda não definido' :
+              [e0.municipio!==titulo?e0.municipio:'Visita ao município', evs.length>1?`${evs.length} atividades neste ponto`:''].filter(Boolean).join(', ');
+  const c=$('card');
+  c.innerHTML=`<header class="card-topo"><h2>${esc(titulo)}</h2><p>${esc(sub)}</p>
+      <button class="card-fechar" aria-label="Fechar">×</button></header>
+    ${evs.map(e=>blocoEvento(e,multiDias)).join('')}
+    <footer class="card-pe">${NOTA_PRECISAO[e0.precisao]?esc(NOTA_PRECISAO[e0.precisao])+' ':''}
+      ${e0.local?`<a href="${linkMapa(e0)}" target="_blank" rel="noopener">Abrir no Google Maps</a>`:''}</footer>`;
+  c.querySelector('.card-fechar').onclick=fecharCard;
+  c.className='on'; c.scrollTop=0;
+  if(idEvento!=null){ const alvo=$('card-ev-'+idEvento); if(alvo) alvo.scrollIntoView({block:'nearest'}); }
+  if(voar && e0.lat!=null) map.flyTo([e0.lat,e0.lng], e0.precisao==='cidade'?10:15, {duration:.6});
+  desenharMapa(); marcarLista();
+}
+function fecharCard(){
+  estado.cardChave=null; estado.eventoFoco=null;
+  $('card').className=''; $('card').innerHTML='';
+  desenharMapa(); marcarLista();
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && estado.cardChave) fecharCard(); });
+
+/* ---------- Calendário ---------- */
+function desenharCalendario(){
+  const [ano,mes]=estado.mes.split('-').map(Number);
+  const primeiro=new Date(ano,mes-1,1), nDias=new Date(ano,mes,0).getDate();
+  $('mesNome').textContent=primeiro.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase());
+  const cont={}, comPatrus=new Set();
+  filtrados().forEach(e=>{ cont[e.data]=(cont[e.data]||0)+1; if(e.patrus) comPatrus.add(e.data); });
+  const g=$('calGrid'); g.innerHTML='';
+  ['D','S','T','Q','Q','S','S'].forEach(s=>{const d=document.createElement('div');d.className='cal-sem';d.textContent=s;d.setAttribute('aria-hidden','true');g.appendChild(d);});
+  for(let i=0;i<primeiro.getDay();i++){const d=document.createElement('div');d.className='dia vazio';g.appendChild(d);}
+  for(let dia=1;dia<=nDias;dia++){
+    const iso=`${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    const b=document.createElement('button'); b.className='dia';
+    const n=cont[iso]||0;
+    b.innerHTML=`${dia}${n?`<span class="qtd">${n}</span>`:''}${comPatrus.has(iso)?'<span class="estrela" aria-hidden="true">★</span>':''}`;
+    if(n){ b.classList.add('tem'); b.onclick=()=>selecionarDia(iso);
+           b.setAttribute('aria-label',`${fmtDia(iso,{day:'numeric',month:'long'})}, ${n} atividade${n>1?'s':''}${comPatrus.has(iso)?', com agenda do Patrus':''}`); }
+    else { b.disabled=true; b.setAttribute('aria-label',`${dia}, sem atividades`); }
+    if(iso===hojeISO) b.classList.add('hoje');
+    if(iso===estado.dia){ b.classList.add('sel'); b.setAttribute('aria-pressed','true'); }
+    g.appendChild(b);
+  }
+  // setas só avançam até meses com agenda
+  const meses=[...new Set(diasComEvento.map(d=>d.slice(0,7)))];
+  $('mesAnt').disabled = !meses.some(m=>m<estado.mes);
+  $('mesProx').disabled = !meses.some(m=>m>estado.mes);
+  $('btnTodos').setAttribute('aria-pressed', estado.dia?'false':'true');
+}
+function mudarMes(passo){
+  const meses=[...new Set(diasComEvento.map(d=>d.slice(0,7)))];
+  const alvo = passo<0 ? meses.filter(m=>m<estado.mes).pop() : meses.find(m=>m>estado.mes);
+  if(alvo){ estado.mes=alvo; desenharCalendario(); }
+}
+function selecionarDia(iso){
+  estado.dia = (estado.dia===iso) ? null : iso;
+  if(estado.dia) estado.mes=estado.dia.slice(0,7);
+  fecharCardSilencioso(); atualizar(true);
+}
+function fecharCardSilencioso(){ estado.cardChave=null; estado.eventoFoco=null; $('card').className=''; $('card').innerHTML=''; }
+
+/* ---------- Lista ---------- */
+function desenharLista(){
+  const evs=doPeriodo(), ul=$('lista');
+  const nPatrus=evs.filter(e=>e.patrus).length, nSemLocal=evs.filter(e=>e.lat==null).length;
+  $('listaTitulo').textContent = estado.dia ? fmtDia(estado.dia,{weekday:'long',day:'numeric',month:'long'}).replace(/^./,c=>c.toUpperCase()) : 'Todos os dias';
+  $('listaResumo').textContent = evs.length
+    ? `${evs.length} atividade${evs.length>1?'s':''}${nPatrus?`, ${nPatrus} com o Patrus`:''}${nSemLocal?`, ${nSemLocal} com local a definir`:''}`
+    : '';
+  if(!evs.length){
+    ul.innerHTML=`<li class="vazio-msg">Nenhuma atividade com esses filtros${estado.dia?' neste dia':''}. Escolha outro dia no calendário ou use Limpar filtros.</li>`;
+    return;
+  }
+  let html='', diaAtual=null;
+  evs.forEach(e=>{
+    if(!estado.dia && e.data!==diaAtual){ diaAtual=e.data;
+      html+=`<li class="grupo-dia">${esc(fmtDia(e.data,{weekday:'long',day:'numeric',month:'long'}).replace(/^./,c=>c.toUpperCase()))}</li>`; }
+    const [h1,h2]=(e.hora||'').split('-');
+    html+=`<li class="ev" data-id="${e.id}" tabindex="0">
+      <div class="ev-hora">${esc(h1||'--')}${h2?`<small>até ${esc(h2)}</small>`:''}</div>
+      <div><div class="ev-titulo">${esc(e.atividade)}</div>
+        <div class="ev-local">${esc(e.local||'Local a definir')}${e.municipio&&e.municipio!=='Belo Horizonte'&&e.municipio!==e.local?`, ${esc(e.municipio)}`:''}</div>
+        <div class="ev-tags">${tagsEvento(e)}</div></div>
+    </li>`;
+  });
+  ul.innerHTML=html;
+  ul.querySelectorAll('.ev').forEach(li=>{
+    const ir=()=>{ const e=EVENTOS.find(x=>x.id===+li.dataset.id);
+      abrirCard(e.lat!=null?chave(e):'sem-'+e.id, e.id, true); };
+    li.onclick=ir; li.onkeydown=ev=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); ir(); } };
+  });
+  marcarLista();
+}
+function marcarLista(){
+  document.querySelectorAll('#lista .ev').forEach(li=>{
+    const e=EVENTOS.find(x=>x.id===+li.dataset.id);
+    const k=e.lat!=null?chave(e):'sem-'+e.id;
+    li.classList.toggle('ativo', k===estado.cardChave);
+  });
+}
+
+/* ---------- Filtros ---------- */
+function montarFiltros(){
+  const ft=$('fTipos');
+  ORDEM_TIPO.forEach(t=>{
+    const n=EVENTOS.filter(e=>e.tipo===t).length;
+    const b=document.createElement('button'); b.className='chip'; b.setAttribute('aria-pressed','true');
+    b.innerHTML=`<span class="bola" style="background:${TIPOS[t]}"></span>${esc(t)} (${n})`;
+    b.onclick=()=>{ estado.tiposOff.has(t)?estado.tiposOff.delete(t):estado.tiposOff.add(t);
+      b.setAttribute('aria-pressed', estado.tiposOff.has(t)?'false':'true'); atualizar(false); };
+    ft.appendChild(b);
+  });
+  const fs=$('fStatus');
+  STATUS.filter(s=>EVENTOS.some(e=>e.status===s)).forEach(s=>{
+    const b=document.createElement('button'); b.className='chip status'; b.setAttribute('aria-pressed','true');
+    b.textContent=s;
+    b.onclick=()=>{ estado.statusOff.has(s)?estado.statusOff.delete(s):estado.statusOff.add(s);
+      b.setAttribute('aria-pressed', estado.statusOff.has(s)?'false':'true'); atualizar(false); };
+    fs.appendChild(b);
+  });
+  const cont={}; EVENTOS.forEach(e=>e.frentes.forEach(f=>cont[f]=(cont[f]||0)+1));
+  Object.keys(cont).sort((a,b)=>a.localeCompare(b)).forEach(f=>{
+    const o=document.createElement('option'); o.value=f; o.textContent=`${f} (${cont[f]})`; $('fFrente').appendChild(o);
+  });
+  $('fFrente').onchange=e=>{ estado.frente=e.target.value; atualizar(false); };
+  $('soPatrus').onchange=e=>{ estado.soPatrus=e.target.checked; atualizar(true); };
+  $('btnTodos').onclick=()=>{ estado.dia=null; fecharCardSilencioso(); atualizar(true); };
+  $('mesAnt').onclick=()=>mudarMes(-1); $('mesProx').onclick=()=>mudarMes(1);
+  $('verBH').onclick=()=>map.setView(BH,12);
+  $('verMG').onclick=()=>map.fitBounds(camadaMG.getBounds(),{padding:[10,10]});
+  $('limpar').onclick=()=>{
+    estado.tiposOff.clear(); estado.statusOff.clear(); estado.soPatrus=false; estado.frente='';
+    $('soPatrus').checked=false; $('fFrente').value='';
+    document.querySelectorAll('#fTipos .chip,#fStatus .chip').forEach(c=>c.setAttribute('aria-pressed','true'));
+    fecharCardSilencioso(); atualizar(true);
+  };
+}
+
+function atualizar(reenquadrar){
+  // se o card aberto ficou sem eventos visíveis, fecha
+  desenharCalendario(); desenharMapa(); desenharLista();
+  if(estado.cardChave && !estado.cardChave.startsWith('sem-') && !grupos.has(estado.cardChave)) fecharCardSilencioso();
+  if(reenquadrar) enquadrar();
+}
+
+// no celular os filtros começam recolhidos para o mapa aparecer mais cedo
+if(window.matchMedia('(max-width:820px)').matches) $('filtrosBox').removeAttribute('open');
+
+montarFiltros();
+atualizar(true);
+</script>
+</body>
+</html>
